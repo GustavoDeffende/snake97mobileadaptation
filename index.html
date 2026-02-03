@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snake 97 – Lilás Edition</title>
+
+<style>
+:root{
+    --bg:#eadcff;
+    --grid:#d6c2f0;
+    --snake:#9d4edd;
+    --snake-head:#7b2cbf;
+    --food:#ff6fb5;
+    --border:#6a4c93;
+    --ui:#f3e8ff;
+}
+
+body{
+    margin:0;
+    font-family:Arial, sans-serif;
+    background:#2b193d;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+}
+
+#menu,#game{
+    background:var(--ui);
+    border-radius:18px;
+    padding:20px;
+    box-shadow:0 10px 30px rgba(0,0,0,.5);
+    text-align:center;
+}
+
+h1{ color:#7b2cbf; }
+
+canvas{
+    background:var(--bg);
+    border:6px solid var(--border);
+    image-rendering:pixelated;
+}
+
+button{
+    padding:10px 14px;
+    margin:6px;
+    font-weight:bold;
+    border-radius:10px;
+    border:none;
+    background:#c77dff;
+    color:#2b193d;
+    cursor:pointer;
+}
+
+button:hover{ background:#e0aaff; }
+
+#score{
+    font-size:20px;
+    font-weight:bold;
+    margin:10px 0;
+    letter-spacing:3px;
+    color:#5a189a;
+}
+
+#controls{
+    display:grid;
+    grid-template-columns:repeat(3,60px);
+    grid-template-rows:repeat(2,60px);
+    gap:6px;
+    justify-content:center;
+    margin-top:10px;
+}
+
+.control-btn{
+    background:#7b2cbf;
+    color:white;
+    font-size:20px;
+}
+
+#gameOver{
+    display:none;
+    position:absolute;
+    inset:0;
+    background:rgba(90,24,154,.85);
+    color:white;
+    justify-content:center;
+    align-items:center;
+    flex-direction:column;
+}
+</style>
+</head>
+
+<body>
+
+<div id="menu">
+    <h1>🐍 Snake 97</h1>
+    <label>
+        <input type="checkbox" id="insaneMode"> Modo Insano
+    </label><br>
+    <button id="start">Iniciar</button>
+</div>
+
+<div id="game" style="display:none;position:relative;">
+    <canvas id="canvas" width="400" height="400"></canvas>
+    <div id="score">00000</div>
+
+    <button id="backMenu">Voltar ao Menu</button>
+
+    <div id="controls">
+        <div></div><button class="control-btn" data-dir="up">▲</button><div></div>
+        <button class="control-btn" data-dir="left">◄</button>
+        <button class="control-btn" data-dir="down">▼</button>
+        <button class="control-btn" data-dir="right">►</button>
+    </div>
+
+    <div id="gameOver">
+        <h2>Game Over</h2>
+        <button id="restart">Reiniciar</button>
+        <button onclick="goMenu()">Menu</button>
+    </div>
+</div>
+
+<script>
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+const size=20, tiles=20;
+
+let snake, food, dir, score, speed, loop;
+let insane=false, audioCtx;
+
+function initAudio(){
+    if(!audioCtx)
+        audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+}
+
+function beep(freq,time){
+    const o=audioCtx.createOscillator();
+    const g=audioCtx.createGain();
+    o.frequency.value=freq;
+    g.gain.value=0.25;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start();
+    o.stop(audioCtx.currentTime+time);
+}
+
+function startGame(){
+    snake=[{x:10,y:10}];
+    dir={x:1,y:0};
+    score=0;
+    insane=document.getElementById("insaneMode").checked;
+    speed=insane?80:150;
+    spawnFood();
+    clearInterval(loop);
+    loop=setInterval(gameLoop,speed);
+    updateScore();
+}
+
+function spawnFood(){
+    do{
+        food={x:Math.floor(Math.random()*tiles),y:Math.floor(Math.random()*tiles)};
+    }while(snake.some(s=>s.x===food.x&&s.y===food.y));
+}
+
+function drawGrid(){
+    ctx.strokeStyle=getComputedStyle(document.documentElement)
+        .getPropertyValue('--grid');
+    ctx.lineWidth=1;
+
+    for(let i=0;i<=tiles;i++){
+        ctx.beginPath();
+        ctx.moveTo(i*size,0);
+        ctx.lineTo(i*size,400);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(0,i*size);
+        ctx.lineTo(400,i*size);
+        ctx.stroke();
+    }
+}
+
+function gameLoop(){
+    const next={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
+
+    if(next.x<0||next.y<0||next.x>=tiles||next.y>=tiles||
+       snake.some(s=>s.x===next.x&&s.y===next.y)){
+        beep(120,0.4);
+        clearInterval(loop);
+        document.getElementById("gameOver").style.display="flex";
+        return;
+    }
+
+    snake.unshift(next);
+
+    if(next.x===food.x&&next.y===food.y){
+        score++;
+        beep(700,0.1);
+        spawnFood();
+
+        if(score===20 && insane){
+            speed=40;
+            clearInterval(loop);
+            loop=setInterval(gameLoop,speed);
+        }
+
+        updateScore();
+    }else snake.pop();
+
+    draw();
+}
+
+function draw(){
+    ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--bg');
+    ctx.fillRect(0,0,400,400);
+
+    drawGrid();
+
+    ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--food');
+    ctx.fillRect(food.x*size,food.y*size,size,size);
+
+    snake.forEach((s,i)=>{
+        ctx.fillStyle=i===0
+            ? getComputedStyle(document.documentElement).getPropertyValue('--snake-head')
+            : getComputedStyle(document.documentElement).getPropertyValue('--snake');
+        ctx.fillRect(s.x*size,s.y*size,size,size);
+    });
+}
+
+function updateScore(){
+    document.getElementById("score").textContent=
+        String(score).padStart(5,"0");
+}
+
+function setDir(x,y){
+    if((x!==0&&dir.x!==0)||(y!==0&&dir.y!==0)) return;
+    dir={x,y};
+}
+
+function goMenu(){
+    clearInterval(loop);
+    document.getElementById("game").style.display="none";
+    document.getElementById("menu").style.display="block";
+    document.getElementById("gameOver").style.display="none";
+}
+
+document.addEventListener("keydown",e=>{
+    if(e.key==="ArrowUp")setDir(0,-1);
+    if(e.key==="ArrowDown")setDir(0,1);
+    if(e.key==="ArrowLeft")setDir(-1,0);
+    if(e.key==="ArrowRight")setDir(1,0);
+});
+
+document.querySelectorAll(".control-btn").forEach(b=>{
+    b.onclick=()=>{
+        const d=b.dataset.dir;
+        if(d==="up")setDir(0,-1);
+        if(d==="down")setDir(0,1);
+        if(d==="left")setDir(-1,0);
+        if(d==="right")setDir(1,0);
+    };
+});
+
+document.getElementById("start").onclick=()=>{
+    initAudio();
+    document.getElementById("menu").style.display="none";
+    document.getElementById("game").style.display="block";
+    startGame();
+};
+
+document.getElementById("restart").onclick=()=>{
+    document.getElementById("gameOver").style.display="none";
+    startGame();
+};
+
+document.getElementById("backMenu").onclick=goMenu;
+</script>
+
+</body>
+</html>
